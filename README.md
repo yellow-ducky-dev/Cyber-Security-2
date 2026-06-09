@@ -1,3 +1,9 @@
+<h1>Git Clone</h1>
+
+```bash
+git clone https://github.com/yellow-ducky-dev/secured-app.git
+```
+
 <h1>Secure App</h1> <br>
 # Secure App
 
