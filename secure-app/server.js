@@ -4,20 +4,16 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const winston = require("winston");
 const path = require("path");
 const fs = require("fs");
-
-// ─── ENSURE LOGS DIRECTORY EXISTS ────────────────────────────────────
-if (!fs.existsSync("logs")) fs.mkdirSync("logs");
+const logger = require("./logger");
+const ipBlocker = require("./middleware/ipBlocker");
+const apiKeyAuth = require("./middleware/apiKeyAuth");
 
 const app = express();
 
 // ─── TRUST PROXY ─────────────────────────────────────────────────────
 app.set("trust proxy", 1);
-
-// ─── CORS ─────────────────────────────────────────────────────────────
-app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
 
 // ─── IP EXTRACTION (MUST BE FIRST) ───────────────────────────────────
 app.use((req, res, next) => {
@@ -27,25 +23,24 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─── LOGGER (Winston) ────────────────────────────────────────────────
-const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.printf(({ timestamp, level, message }) => `[${timestamp}] ${level.toUpperCase()}: ${message}`),
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({
-      filename: "logs/security.log",
-      lazy: false,
-      options: { flags: "a" },
-    }),
-  ],
-});
+// ─── IP BLOCKER (IDS INTEGRATION) ────────────────────────────────────
+app.use(ipBlocker);
 
-logger.on("error", (err) => console.error("Logger error:", err));
-process.on("exit", () => logger.end());
+// ─── CORS ─────────────────────────────────────────────────────────────
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:8080,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:8080,http://127.0.0.1:3001').split(',').map(o => o.trim());
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, or standard API clients)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ["GET", "POST"],
+  credentials: true
+}));
 
 // ─── REQUEST LOGGING ─────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -53,7 +48,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─── SECURITY HEADERS (Helmet) ───────────────────────────────────────
+// ─── SECURITY HEADERS (Helmet & HSTS) ──────────────────────────────────
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -66,6 +61,11 @@ app.use(
         connectSrc: ["'self'"], // ← this allows fetch() calls
       },
     },
+    hsts: {
+      maxAge: 31536000, // 1 year in seconds
+      includeSubDomains: true,
+      preload: true
+    }
   }),
 );
 
@@ -79,7 +79,7 @@ app.use(express.static(path.join(__dirname, "public")));
 // ─── RATE LIMITING ───────────────────────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: 5, // Tightened from 10 to 5
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
@@ -99,6 +99,18 @@ const globalLimiter = rateLimit({
 });
 
 app.use(globalLimiter);
+
+// ─── SECURED API KEY ENDPOINT ────────────────────────────────────────
+app.get("/api/secure-data", apiKeyAuth, (req, res) => {
+  res.json({
+    message: "This is a secured API endpoint accessible only with a valid API key.",
+    timestamp: new Date().toISOString(),
+    data: {
+      status: "secure",
+      message: "Zero-Trust API keys enforce machine-to-machine validation."
+    }
+  });
+});
 
 // ─── ROUTES ──────────────────────────────────────────────────────────
 const authRoutes = require("./routes/auth");

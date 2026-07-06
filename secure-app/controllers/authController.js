@@ -3,6 +3,7 @@ require('dotenv').config();
 const bcrypt    = require('bcrypt');
 const jwt       = require('jsonwebtoken');
 const validator = require('validator');
+const logger    = require('../logger');
 
 // In-memory user store (replace with DB in production)
 const users = new Map();
@@ -50,9 +51,11 @@ exports.register = async (req, res) => {
     users.set(username, { id: userId, username, email, password: hashedPassword });
 
     const token = issueToken(userId, username);
+    logger.info(`User registered successfully - Username: ${username} - IP: ${req.clientIp || 'unknown'}`);
     return res.status(201).json({ message: 'Registration successful.', token });
 
   } catch (err) {
+    logger.error(`Registration failed: ${err.message}`);
     return res.status(500).json({ error: 'Registration failed.' });
   }
 };
@@ -68,18 +71,24 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required.' });
 
     const user = users.get(username);
-    if (!user)
+    if (!user) {
+      logger.warn(`Login failed - IP: ${req.clientIp || 'unknown'} - Username: ${username} (User not found)`);
       // Generic message — don't reveal whether username exists
       return res.status(401).json({ error: 'Invalid credentials.' });
+    }
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match)
+    if (!match) {
+      logger.warn(`Login failed - IP: ${req.clientIp || 'unknown'} - Username: ${username} (Incorrect password)`);
       return res.status(401).json({ error: 'Invalid credentials.' });
+    }
 
     const token = issueToken(user.id, user.username);
+    logger.info(`Login successful - Username: ${user.username} - IP: ${req.clientIp || 'unknown'}`);
     return res.status(200).json({ message: 'Login successful.', token });
 
   } catch (err) {
+    logger.error(`Login error: ${err.message}`);
     return res.status(500).json({ error: 'Login failed.' });
   }
 };

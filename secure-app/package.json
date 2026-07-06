@@ -4,8 +4,9 @@
   "description": "**Cybersecurity Internship Task | Weeks 1–3**",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "monitor": "node monitor.js",
+    "test-security": "node test-security.js"
   },
   "keywords": [],
   "author": "",

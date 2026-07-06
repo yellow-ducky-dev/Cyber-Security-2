@@ -1,0 +1,9 @@
+[node-express-login]
+enabled  = true
+port     = 80,443,8080
+filter   = express-login
+logpath  = /var/www/secure-app/logs/security.log
+maxretry = 5
+findtime = 60
+bantime  = 300
+action   = iptables-multiport[name=node-express-login, port="80,443,8080", protocol=tcp]

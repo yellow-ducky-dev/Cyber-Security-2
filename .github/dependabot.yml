@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Enable version updates for npm packages in secure-app
+  - package-ecosystem: "npm"
+    directory: "/secure-app"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    vulnerability-alerts:
+      enabled: true
+
+  # Enable version updates for npm packages in vuln-demo
+  - package-ecosystem: "npm"
+    directory: "/vuln-demo"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    vulnerability-alerts:
+      enabled: true
