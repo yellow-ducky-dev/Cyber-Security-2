@@ -15,7 +15,8 @@
     "csrf-csrf": "^4.0.3",
     "express": "^5.2.1",
     "md5": "^2.3.0",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "^6.0.1",
+    "validator": "^13.15.35"
   },
   "description": ""
 }

@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const TARGET_URL = 'http://localhost:8080';
+const TARGET_URL = 'http://localhost:3000';
 
 async function makeRequest(path, method = 'GET', headers = {}, body = null) {
   return new Promise((resolve) => {
@@ -10,7 +10,7 @@ async function makeRequest(path, method = 'GET', headers = {}, body = null) {
     
     const options = {
       hostname: 'localhost',
-      port: 8080,
+      port: 3000,
       path: path,
       method: method,
       headers: {
