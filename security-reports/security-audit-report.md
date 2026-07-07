@@ -72,4 +72,60 @@ Lynis host-based security evaluation recommendations applied:
 ---
 
 ## 4. Final Penetration Testing Summary
-Final verification checks against the remediated implementations prove that the system successfully blocks the automated attack payloads (represented by SQLi, XSS, and CSRF) while logging the intrusion attempts appropriately. The rate limiter and dynamic IP blocker (IDS) shield the environment from denial of service and credentials stuffing.
+
+Final penetration testing was conducted using automated exploit scripts (`vuln-demo/test-exploits.js`) against both the vulnerable baseline (`port 3001`) and remediated (`port 3002`) applications, simulating the role of Burp Suite and Metasploit in a controlled environment.
+
+### 4.1 Attack Matrix & Results
+
+| Attack Vector | Tool / Method | Vulnerable App (3001) | Secure App (3002) |
+| :--- | :--- | :--- | :--- |
+| **Reflected XSS** | `<script>alert('XSS')</script>` in `/search?q=` | 🔴 Script payload reflected raw in DOM | 🟢 Escaped to `&lt;script&gt;` — no execution |
+| **SQLi Login Bypass** | `admin' --` in username field | 🔴 Admin session granted, no password needed | 🟢 Parameterized query — bypass fails |
+| **SQLi UNION Dump** | `UNION SELECT ... FROM users--` in search | 🔴 All MD5 hashes dumped in response table | 🟢 Treated as literal string — no data leaked |
+| **IDOR + Info Disclosure** | `GET /api/user/1` without auth | 🔴 Admin profile + password hash exposed in JSON | 🟢 401 Unauthorized — no session, no access |
+| **CSRF Transfer** | Forged POST `/transfer` from external origin | 🔴 Funds transferred silently (no token check) | 🟢 403 Forbidden — CSRF token invalid |
+
+### 4.2 IDS / Rate Limiter Validation
+
+- Sending 5+ failed login attempts from the same IP within 60 seconds triggers an **automatic IP ban** (logged to `logs/alerts.log`, written to `blocked-ips.json`).
+- Subsequent requests from the banned IP receive **403 Forbidden** before even reaching the route handler.
+- The login endpoint independently enforces **express-rate-limit** (5 requests / 15 min), returning **429 Too Many Requests**.
+
+### 4.3 Conclusion
+
+All five critical attack vectors were successfully replicated on the vulnerable application and **fully blocked** on the remediated application. The IDS auto-banning system, rate limiters, CSRF tokens, parameterized queries, and output escaping operate correctly as a layered defence-in-depth strategy.
+
+---
+
+## 5. Bonus — Zero Trust, WAF & Social Engineering
+
+### 5.1 Zero Trust Principles Applied
+
+| Principle | Implementation |
+| :--- | :--- |
+| Never trust the network | All API calls require an explicit `x-api-key` or `Authorization: Bearer` token, regardless of origin |
+| Verify explicitly (per request) | JWT middleware re-validates the token signature and expiry on every protected request — no session state cached |
+| Least privilege deployment | Docker container runs as `USER node` (non-root) — cannot write outside `/usr/src/app` |
+| Dynamic threat response | IDS (`monitor.js`) continuously evaluates log events and revokes IP access in real-time |
+
+### 5.2 Web Application Firewall (WAF) Strategy
+
+A production WAF layer (e.g. **AWS WAF**, **Cloudflare WAF**, or **ModSecurity**) would be deployed in front of the Node.js server to provide:
+- Managed rule sets blocking known SQLi, XSS, and RCE signatures at the network edge.
+- Rate limiting before requests reach the application server.
+- IP reputation feeds and geo-blocking.
+- TLS termination enforcing HTTPS (complementing the HSTS header set in the app).
+
+See `secure-app/waf-rules.md` for a documented WAF rule strategy.
+
+### 5.3 Social Engineering Simulation
+
+A phishing awareness simulation was implemented via the `/csrf-trap` route in `vuln-demo-server.js`:
+
+- **Scenario:** An attacker (Bob) hosts a page styled as a prize giveaway.
+- **Mechanism:** A hidden auto-submitting form silently POSTs a fund transfer request to the vulnerable app using the victim's (Alice's) active browser session.
+- **Outcome on Vulnerable App:** Transfer of $50 executes silently — Alice has no warning.
+- **Outcome on Remediated App:** Transfer is rejected with **403 Forbidden** (missing CSRF double-submit token).
+- **Awareness Finding:** Users should be trained to recognise unexpected redirects, prize pages, and requests to "not close the tab" — all common social engineering indicators.
+
+See `security-reports/social-engineering-report.md` for full findings.

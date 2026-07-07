@@ -2,7 +2,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const TARGET_URL = 'http://localhost:3000';
+const PORT = parseInt(process.env.PORT || '3000');
+const TARGET_URL = `http://localhost:${PORT}`;
 
 async function makeRequest(path, method = 'GET', headers = {}, body = null) {
   return new Promise((resolve) => {
@@ -10,7 +11,7 @@ async function makeRequest(path, method = 'GET', headers = {}, body = null) {
     
     const options = {
       hostname: 'localhost',
-      port: 3000,
+      port: PORT,
       path: path,
       method: method,
       headers: {
@@ -51,7 +52,7 @@ async function makeRequest(path, method = 'GET', headers = {}, body = null) {
 }
 
 console.log('🧪 =========================================');
-console.log('🧪 SECURITY COMPLIANCE ENGINE: secure-app');
+console.log(`🧪 SECURITY COMPLIANCE ENGINE: secure-app (port ${PORT})`);
 console.log('🧪 =========================================\n');
 
 async function runTests() {
